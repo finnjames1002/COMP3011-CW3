@@ -4,6 +4,7 @@ class Test
 {
 public:
 	virtual void Model(glm::mat4* model) = 0;
+	virtual void ModelNoScale(glm::mat4* model) = 0;
 	virtual vector<Object> ParseObj() = 0;
 };
 
@@ -42,8 +43,14 @@ public:
 	void Model(glm::mat4* model)
 	{
 		(*model) = glm::translate((*model), glm::vec3(0.f, -1.8f, -3.f));
-		(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
+		//(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
 		(*model) = glm::scale((*model), glm::vec3(.005f, .005f, .005f));
+	}
+	void ModelNoScale(glm::mat4* model)
+	{
+		(*model) = glm::translate((*model), glm::vec3(0.f, 10.f, -80.f));
+		//(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
+		(*model) = glm::scale((*model), glm::vec3(2.f, 2.f, 2.f));
 	}
 	virtual vector<Object> ParseObj()
 	{
