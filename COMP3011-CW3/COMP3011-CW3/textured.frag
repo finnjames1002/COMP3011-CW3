@@ -34,3 +34,8 @@ void main()
     fragColour = vec4(result, texColor.a); // Use alpha value from texture
 
 }
+
+void calculateShadow()
+{
+    
+}

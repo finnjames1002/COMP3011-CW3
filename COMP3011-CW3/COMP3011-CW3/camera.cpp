@@ -5,7 +5,7 @@ Camera::Camera() : radius(15.0f), position(0.0f), target(0.0f), up(0.0f, 1.0f, 0
 }
 
 void Camera::processKeyboard(GLFWwindow* window) {
-    float zoomSpeed = 0.005f; // The speed of zooming
+    float zoomSpeed = 0.05f; // The speed of zooming
     if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) // Zoom in
     {
         radius -= zoomSpeed;
@@ -14,6 +14,14 @@ void Camera::processKeyboard(GLFWwindow* window) {
     {
         radius += zoomSpeed;
     }
+	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) // Camera 1
+    {
+		rotateSpeed = 0.5f;
+	}
+	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) // Camera 2
+	{
+		rotateSpeed = 0.f;
+	}
 }
 
 void Camera::setRotationSpeed(float rSpeed) {

@@ -35,7 +35,8 @@ int numLatitudeLines = 100;
 int numLongitudeLines = 100;
 
 // Define the position of the light source (the sun)
-glm::vec3 lightPos = glm::vec3(0.f, 10.f, -80.f);
+//glm::vec3 lightPos = glm::vec3(0.f, 10.f, -80.f);
+glm::vec3 lightPos = glm::vec3(0.f, 10.f, -50.f);
 
 void SizeCallback(GLFWwindow* window, int w, int h)
 {
@@ -163,15 +164,25 @@ void drawSphere(int sphereProgram, int sphereVAO, int numVertices, glm::mat4 vie
 void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int texScale) {
     for (int i = 0; i < objs.size(); i++)
     {
+		glUseProgram(shaderProgram);
         glBindTexture(GL_TEXTURE_2D, objs[i].texture);
-
         glBindVertexArray(objs[i].VAO);
-
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
         glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
         glDrawArrays(GL_TRIANGLES, 0, (objs[i].tris.size() * 3));
     }
+}
+
+void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm::mat4 projectedLightSpaceMatrix, vector<Object> objs, vector<Object> objs2)
+{
+    glViewport(0, 0, SH_MAP_WIDTH, SH_MAP_HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadow.FBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+    glUseProgram(shadowShaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
+    drawObject(objs2, glm::mat4(1.f), shadowShaderProgram, 50);
+	drawObject(objs, glm::mat4(1.f), shadowShaderProgram, 1);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 int main(int argc, char** argv)
@@ -184,17 +195,18 @@ int main(int argc, char** argv)
     glfwMakeContextCurrent(window);
     glfwSetWindowSizeCallback(window, SizeCallback);
 
-
     gl3wInit();
     glEnable(GL_MULTISAMPLE);
 
     glEnable(GL_DEBUG_OUTPUT);
     glDebugMessageCallback(DebugMessageCallback, 0);
-
+    
+    // Shadow setup
 	ShadowStruct shadow = setup_shadowmap(SH_MAP_WIDTH, SH_MAP_HEIGHT);
 
     unsigned int shaderProgram = CompileShader("textured.vert", "textured.frag");
 	unsigned int sphereProgram = CompileShader("triangle.vert", "triangle.frag");
+	unsigned int shadowProgram = CompileShader("shadow.vert", "shadow.frag");
 
     //SECTION A - EDIT THIS CODE TO TEST
     //Test0 T0;
@@ -264,6 +276,16 @@ int main(int argc, char** argv)
         glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
         glUniform3f(glGetUniformLocation(sphereProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
+        // Setup light space matrix
+        glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 1.0f, 200.0f);
+        glm::vec3 lightDir = glm::normalize(lightPos - glm::vec3(0.f, -1.8f, -3.f));
+        glm::mat4 lightView = glm::lookAt(lightPos, lightPos + lightDir, camera.getUp());
+        glm::mat4 projectedLightSpaceMatrix = lightProjection * lightView;
+        generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2);
+		//saveShadowMapToBitmap(shadow.Texture, SH_MAP_WIDTH, SH_MAP_HEIGHT);
+
+        glViewport(0, 0, WIDTH, HEIGHT);
+
 		// Draw the sphere
 		drawSphere(sphereProgram, sphereVAO, numVertices, view, projection, modelSun);
 
@@ -274,8 +296,7 @@ int main(int argc, char** argv)
 		// Draw the objects
         drawObject(objs2, modelFloor, shaderProgram, 50);
 		drawObject(objs, model, shaderProgram, 1);
-		
-        
+		        
         glfwSwapBuffers(window);
 
         glfwPollEvents();
