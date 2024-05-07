@@ -17,11 +17,25 @@ using namespace std;
 #include "shader.h"
 #include "texture.h"
 #include "test.h"
+#include "shadow.h"
+#include "camera.h"
 
-const int width = 1200;
-const int height = 800;
+#define WIDTH 1200
+#define HEIGHT 800
+#define SH_MAP_WIDTH 2048
+#define SH_MAP_HEIGHT 2048
+#define PI 3.14159265358979323846
+
+Camera camera = Camera();
+
 float radius = 15.0f; // Camera's distance from the center of rotation
 
+// Define the vertices for sun
+int numLatitudeLines = 100;
+int numLongitudeLines = 100;
+
+// Define the position of the light source (the sun)
+glm::vec3 lightPos = glm::vec3(0.f, 10.f, -80.f);
 
 void SizeCallback(GLFWwindow* window, int w, int h)
 {
@@ -32,28 +46,9 @@ void SizeCallback(GLFWwindow* window, int w, int h)
 
 void processKeyboard(GLFWwindow* window)
 {
-    float zoomSpeed = 0.005f; // The speed of zooming
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) // Zoom in
-    {
-        radius -= zoomSpeed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) // Zoom out
-    {
-        radius += zoomSpeed;
-    }
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 }
-
-
-// Define the indices for the floor
-GLuint floorIndices[] = {
-    0, 1, 2,
-    2, 3, 0
-};
-
-
-const float PI = 3.14159265358979323846;
 
 struct Vertex {
     float x, y, z;
@@ -92,39 +87,23 @@ float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
     return flattenedVertices;
 }
 
+void setupSphere(unsigned int* sphereVAO, unsigned int* sphereVBO, int numVertices, float* vert) {
+    glBindVertexArray(0); // Unbind VAO
 
-// Define the vertices for an untextured triangle
-int numLatitudeLines = 100;
-int numLongitudeLines = 100;
+    glGenVertexArrays(1, sphereVAO);
+    glGenBuffers(1, sphereVBO);
 
+    // Bind and set vertex buffer(s) and attribute pointer(s) for the sphere
+    glBindVertexArray(*sphereVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, *sphereVBO);
+    glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(float), vert, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+}
 
-int main(int argc, char** argv)
-{
-    float* vert = generateSphereVert(numLatitudeLines, numLongitudeLines);
-    int numVertices = numLatitudeLines * numLongitudeLines * 6;
-    glfwInit();
-    glfwWindowHint(GLFW_SAMPLES, 8); // Enable 8x MSAA
-    GLFWwindow* window = glfwCreateWindow(width, height, "Assessment 2", NULL, NULL);
-    glfwMakeContextCurrent(window);
-    glfwSetWindowSizeCallback(window, SizeCallback);
-
-
-    gl3wInit();
-    glEnable(GL_MULTISAMPLE);
-
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(DebugMessageCallback, 0);
-
-    unsigned int shaderProgram = CompileShader("textured.vert", "textured.frag");
-	unsigned int sphereProgram = CompileShader("triangle.vert", "triangle.frag");
-
-    //SECTION A - EDIT THIS CODE TO TEST
-    //Test0 T0;
-    Test1 T1;
-    Test2 T2;
-    Test* tester = &T2;
-    vector<Object> objs = tester->ParseObj();
-
+vector<Object> setupTree(vector<Object> objs) {
     //Setup for objecs 
     for (int i = 0; i < objs.size(); i++)
     {
@@ -145,11 +124,12 @@ int main(int argc, char** argv)
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(5 * sizeof(float))); // Add this line
-        glEnableVertexAttribArray(2); // Add this line
+        glEnableVertexAttribArray(2);
     }
+	return objs;
+}
 
-	vector<Object> objs2 = T1.ParseObj();
-
+vector<Object> setupFloor(vector<Object> objs2) {
     for (int i = 0; i < objs2.size(); i++)
     {
         objs2[i].texture = CreateTexture(objs2[i].mtl.fil_name);
@@ -165,25 +145,76 @@ int main(int argc, char** argv)
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
     }
+    return objs2;
+}
 
-    glBindVertexArray(0); // Unbind VAO
+void drawSphere(int sphereProgram, int sphereVAO, int numVertices, glm::mat4 view, glm::mat4 projection, glm::mat4 modelSun) {
+    // Draw the sphere first
+    glUseProgram(sphereProgram); // Use the sphere shader program
+    glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    // Use the same model matrix as the textured objects
+    glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelSun));
+    glBindVertexArray(sphereVAO);
+    glEnable(GL_DEPTH_TEST); // Enable depth testing
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
+}
+
+void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int texScale) {
+    for (int i = 0; i < objs.size(); i++)
+    {
+        glBindTexture(GL_TEXTURE_2D, objs[i].texture);
+
+        glBindVertexArray(objs[i].VAO);
+
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+        glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
+        glDrawArrays(GL_TRIANGLES, 0, (objs[i].tris.size() * 3));
+    }
+}
+
+int main(int argc, char** argv)
+{
+    float* vert = generateSphereVert(numLatitudeLines, numLongitudeLines);
+    int numVertices = numLatitudeLines * numLongitudeLines * 6;
+    glfwInit();
+    glfwWindowHint(GLFW_SAMPLES, 8); // Enable 8x MSAA
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Assessment 2", NULL, NULL);
+    glfwMakeContextCurrent(window);
+    glfwSetWindowSizeCallback(window, SizeCallback);
+
+
+    gl3wInit();
+    glEnable(GL_MULTISAMPLE);
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(DebugMessageCallback, 0);
+
+	ShadowStruct shadow = setup_shadowmap(SH_MAP_WIDTH, SH_MAP_HEIGHT);
+
+    unsigned int shaderProgram = CompileShader("textured.vert", "textured.frag");
+	unsigned int sphereProgram = CompileShader("triangle.vert", "triangle.frag");
+
+    //SECTION A - EDIT THIS CODE TO TEST
+    //Test0 T0;
+    Test1 T1;
+    Test2 T2;
+    Test* tester = &T2;
+    vector<Object> objs = tester->ParseObj();
+
+    
+	objs = setupTree(objs);
+
+	vector<Object> objs2 = T1.ParseObj();
+
+	objs2 = setupFloor(objs2);
+    
 
     // Define the VAO and VBO for the sphere
     unsigned int sphereVAO, sphereVBO;
-    glGenVertexArrays(1, &sphereVAO);
-    glGenBuffers(1, &sphereVBO);
-
-    // Bind and set vertex buffer(s) and attribute pointer(s) for the sphere
-    glBindVertexArray(sphereVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
-    glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(float), vert, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    // Define the position of the light source (the sun)
-    glm::vec3 lightPos = glm::vec3(0.f, 10.f, -80.f); // Replace with the actual position of your sun
-
+	setupSphere(&sphereVAO, &sphereVBO, numVertices, vert);
+    
     // Unbind the VAO
     glBindVertexArray(0);
 
@@ -199,7 +230,8 @@ int main(int argc, char** argv)
 
     while (!glfwWindowShouldClose(window))
     {
-        processKeyboard(window);
+        camera.processKeyboard(window);
+		camera.setRotationSpeed((float)glfwGetTime() / 2);
 
         glClearColor(0.51f, 0.79f, 1.f, 0.7f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -214,85 +246,36 @@ int main(int argc, char** argv)
         // Extract the translation part of the model matrix to get the position of the tree
         glm::vec3 treePosition = glm::vec3(model[3]);
 
-        float cameraSpeed = (float)glfwGetTime() / 2; // Speed of camera rotation
-        
-		float yOffset = 1.0f; // Height of the camera above the tree
+		camera.updateCam(treePosition, glm::vec3(0.f, 1.f, 0.f));
 
-        // Calculate the new position of the camera based on the rotation angle and the position of the tree
-        glm::vec3 cameraPos = glm::vec3(
-            treePosition.x + radius * cos(cameraSpeed),
-            treePosition.y + yOffset,
-            treePosition.z + radius * sin(cameraSpeed)
-        );
-
-
-
-        glm::vec3 cameraTarget = treePosition; // Make the camera look at the tree
-        glm::vec3 cameraUp = glm::vec3(0.f, 1.f, 0.f);
-
+		// Setup view, projection, sun matrices
         glm::mat4 view = glm::mat4(1.f);
-        view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+        view = glm::lookAt(camera.getPosition(), camera.getTarget(), camera.getUp());
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-
         glm::mat4 projection = glm::mat4(1.f);
-        projection = glm::perspective(glm::radians(45.f), (float)width / (float)height, .01f, 10000.f);
+        projection = glm::perspective(glm::radians(45.f), (float)WIDTH / (float)HEIGHT, .01f, 10000.f);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
         glm::mat4 modelSun = glm::mat4(1.f);
         tester->ModelSun(&modelSun);
 
-        // Pass the light position to the shaders
+        // Pass the light and view position to the shaders
         glUniform3f(glGetUniformLocation(shaderProgram, "lightPos"), lightPos.x, lightPos.y, lightPos.z);
         glUniform3f(glGetUniformLocation(sphereProgram, "lightPos"), lightPos.x, lightPos.y, lightPos.z);
-        // Pass the view position (camera position) to the shaders
-        glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-        glUniform3f(glGetUniformLocation(sphereProgram, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+        glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
+        glUniform3f(glGetUniformLocation(sphereProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
-
-        // Draw the sphere first
-        glUseProgram(sphereProgram); // Use the sphere shader program
-        glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        // Use the same model matrix as the textured objects
-        glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelSun));
-        glBindVertexArray(sphereVAO);
-        glEnable(GL_DEPTH_TEST); // Enable depth testing
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
+		// Draw the sphere
+		drawSphere(sphereProgram, sphereVAO, numVertices, view, projection, modelSun);
 
         glBindVertexArray(0);
 
         glUseProgram(shaderProgram); // Switch back to the original 
 
-
-        //SECTION C - TEXTURE BINDING, MODEL MATRIX AND DRAW CALL FOR EACH OBJECT. DO NOT EDIT THIS CODE 
-        for (int i = 0; i < objs2.size(); i++)
-        {
-            int texScale = 50;
-            glBindTexture(GL_TEXTURE_2D, objs2[i].texture);
-
-            glBindVertexArray(objs2[i].VAO);
-
-            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelFloor));
-
-            glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
-            glDrawArrays(GL_TRIANGLES, 0, (objs2[i].tris.size() * 3));
-        }
-
-        //SECTION C - TEXTURE BINDING, MODEL MATRIX AND DRAW CALL FOR EACH OBJECT. DO NOT EDIT THIS CODE 
-        for (int i = 0; i < objs.size(); i++)
-        {
-			int texScale = 1;
-            glBindTexture(GL_TEXTURE_2D, objs[i].texture);
-
-            glBindVertexArray(objs[i].VAO);
-
-            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
-			glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
-            glDrawArrays(GL_TRIANGLES, 0, (objs[i].tris.size() * 3));
-        }
+		// Draw the objects
+        drawObject(objs2, modelFloor, shaderProgram, 50);
+		drawObject(objs, model, shaderProgram, 1);
+		
         
-
         glfwSwapBuffers(window);
 
         glfwPollEvents();
