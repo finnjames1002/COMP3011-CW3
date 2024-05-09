@@ -8,10 +8,12 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform float texScale; // New uniform for texture scaling
+uniform mat4 projectedLightSpaceMatrix; // New uniform for shadow mapping
 
 out vec2 TexCoord;
 out vec3 Normal; // Output the normal to the fragment shader
 out vec3 FragPos; // Output the fragment position to the fragment shader
+out vec4 FragPosProjectedLightSpace; // Output the fragment position in light space
 
 void main()
 {
@@ -19,4 +21,5 @@ void main()
     TexCoord = aTex.xy * texScale; // Apply the texture scaling
     Normal = mat3(transpose(inverse(model))) * aNormal; // Transform the normal
     FragPos = vec3(model * vec4(aPos, 1.0)); // Calculate the fragment position
+    FragPosProjectedLightSpace = projectedLightSpaceMatrix * vec4(FragPos, 1.0); // Calculate the fragment position in light space
 }
