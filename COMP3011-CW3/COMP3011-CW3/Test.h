@@ -67,7 +67,7 @@ public:
 	}
 	void ModelSun(glm::mat4* model)
 	{
-		(*model) = glm::translate((*model), glm::vec3(0.f, 10.f, -80.f));
+		(*model) = glm::translate((*model), glm::vec3(0.f, 10.f, -50.f));
 		//(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
 		(*model) = glm::scale((*model), glm::vec3(2.f, 2.f, 2.f));
 	}

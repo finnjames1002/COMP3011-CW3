@@ -4,7 +4,7 @@ void GLAPIENTRY DebugMessageCallback(GLenum source, GLenum type, GLuint id, GLen
 {
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:					fprintf(stderr, "GL DebguMessageCallback: type = %s", "ERROR");					break;
+		case GL_DEBUG_TYPE_ERROR:					fprintf(stderr, "GL DebugMessageCallback: type = %s", "ERROR");					break;
 		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
 		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
 		case GL_DEBUG_TYPE_PORTABILITY:
