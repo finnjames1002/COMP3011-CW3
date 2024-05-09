@@ -22,8 +22,8 @@ using namespace std;
 
 #define WIDTH 1200
 #define HEIGHT 800
-#define SH_MAP_WIDTH 2048
-#define SH_MAP_HEIGHT 2048
+#define SH_MAP_WIDTH 4096
+#define SH_MAP_HEIGHT 4096
 #define PI 3.14159265358979323846
 
 Camera camera = Camera();
@@ -61,8 +61,8 @@ float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
     for (int i = 0; i < numLatitudeLines; ++i) {
         for (int j = 0; j <= numLongitudeLines; ++j) {
             for (int k = 0; k <= 1; ++k) {
-                float theta = static_cast<float>((i + k) * PI / numLatitudeLines);
-                float phi = static_cast<float>(j * 2 * PI / numLongitudeLines);
+                float theta = (i + k) * PI / numLatitudeLines;
+                float phi = j * 2 * PI / numLongitudeLines;
 
                 Vertex vertex;
                 vertex.x = std::sin(theta) * std::cos(phi);
@@ -74,9 +74,9 @@ float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
         }
     }
 
-    float* flattenedVertices = new float[(numLatitudeLines + 1) * (numLongitudeLines + 1) * 2 * 6];
+    float* flattenedVertices = new float[vertices.size() * 6]; // 6 because we now have 3 coordinates and 3 color values
 
-    for (int i = 0; i < numLatitudeLines * (numLongitudeLines + 1) * 2; ++i) {
+    for (int i = 0; i < vertices.size(); ++i) {
         flattenedVertices[i * 6] = vertices[i].x;
         flattenedVertices[i * 6 + 1] = vertices[i].y;
         flattenedVertices[i * 6 + 2] = vertices[i].z;
@@ -84,7 +84,6 @@ float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
         flattenedVertices[i * 6 + 4] = 0.87f; // Green
         flattenedVertices[i * 6 + 5] = 0.13f; // Blue
     }
-
 
     return flattenedVertices;
 }
@@ -158,6 +157,7 @@ void drawSphere(int sphereProgram, int sphereVAO, int numVertices, glm::mat4 vie
     // Use the same model matrix as the textured objects
     glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelSun));
     glBindVertexArray(sphereVAO);
+    glEnable(GL_DEPTH_TEST); // Enable depth testing
     glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
 }
 
@@ -165,11 +165,14 @@ void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int tex
     for (int i = 0; i < objs.size(); i++)
     {
 		glUseProgram(shaderProgram);
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, objs[i].texture);
+        glUniform1i(glGetUniformLocation(shaderProgram, "textureSampler"), 0);
+
         glBindVertexArray(objs[i].VAO);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), static_cast<GLfloat>(texScale));
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(objs[i].tris.size() * 3));
+        glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
+        glDrawArrays(GL_TRIANGLES, 0, (objs[i].tris.size() * 3));
     }
 }
 
@@ -245,9 +248,7 @@ int main(int argc, char** argv)
         camera.processKeyboard(window);
 		camera.setRotationSpeed((float)glfwGetTime() / 2);
 
-        glClearColor(0.51f, 0.79f, 1.f, 0.7f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        
 
         glm::mat4 model = glm::mat4(1.f);
         tester->Model(&model);
@@ -277,21 +278,29 @@ int main(int argc, char** argv)
         glUniform3f(glGetUniformLocation(sphereProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
         // Setup light space matrix
-        glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 200.0f);
+        glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 1.0f, 100.0f);
         glm::vec3 lightDir = glm::normalize(lightPos - glm::vec3(0.f, -1.8f, -3.f));
-        glm::mat4 lightView = glm::lookAt(lightPos, lightPos + lightDir, camera.getUp());
+        glm::mat4 lightView = glm::lookAt(lightPos, camera.getTarget(), camera.getUp());
+
         glm::mat4 projectedLightSpaceMatrix = lightProjection * lightView;
         generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2);
 		//saveShadowMapToBitmap(shadow.Texture, SH_MAP_WIDTH, SH_MAP_HEIGHT);
 
         glViewport(0, 0, WIDTH, HEIGHT);
+        glClearColor(0.51f, 0.79f, 1.f, 0.7f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		
 
 		// Draw the sphere
 		drawSphere(sphereProgram, sphereVAO, numVertices, view, projection, modelSun);
 
-		glBindVertexArray(0); // Unbind VAO
+        glBindVertexArray(0);
 
+		
         glUseProgram(shaderProgram); // Switch back to the original 
+        glBindTexture(GL_TEXTURE_2D, shadow.Texture);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
 
 		// Draw the objects
         drawObject(objs2, modelFloor, shaderProgram, 50);
