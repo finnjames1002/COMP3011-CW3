@@ -50,7 +50,7 @@ public:
 	virtual vector<Object> ParseObj()
 	{
 		vector<Object> objs;
-		obj_parse("objs/bird/textured_quad.obj", &objs);
+		obj_parse("objs/floor/textured_quad.obj", &objs);
 		return objs;
 	}
 };
@@ -61,26 +61,27 @@ class Test2 : public Test
 public:
 	void Model(glm::mat4* model)
 	{
-		(*model) = glm::translate((*model), glm::vec3(0.f, -1.8f, -3.f));
+		(*model) = glm::translate((*model), glm::vec3(0.f, 0.f, 0.f));
 		//(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
-		(*model) = glm::scale((*model), glm::vec3(.005f, .005f, .005f));
+		//(*model) = glm::scale((*model), glm::vec3(.5f, .5f, .5f));
 	}
 	void ModelSun(glm::mat4* model)
 	{
-		(*model) = glm::translate((*model), glm::vec3(0.f, 10.f, -50.f));
-		//(*model) = glm::rotate((*model), (float)glfwGetTime() / 2, glm::vec3(0.f, 1.f, 0.f));
+		(*model) = glm::translate((*model), glm::vec3(0.f, 20.f, 60.f));
+		(*model) = glm::rotate((*model), glm::radians(180.0f), glm::vec3(1.f, 0.f, 0.f)); // Rotate 90 degrees around X-axis
 		(*model) = glm::scale((*model), glm::vec3(2.f, 2.f, 2.f));
 	}
 	void ModelFloor(glm::mat4* model)
 	{
-		(*model) = glm::translate((*model), glm::vec3(0.f, -1.8f, 0.f));
+		(*model) = glm::translate((*model), glm::vec3(0.f, 0.0f, 0.f));
 		(*model) = glm::rotate((*model), glm::radians(90.0f), glm::vec3(1.f, 0.f, 0.f)); // Rotate 90 degrees around X-axis
 		(*model) = glm::scale((*model), glm::vec3(200.f, 200.f, 200.f));
+		//(*model) = glm::scale((*model), glm::vec3(10.f, 10.f, 10.f));
 	}
 	virtual vector<Object> ParseObj()
 	{
 		vector<Object> objs;
-		obj_parse("objs/white_oak/white_oak.obj", &objs);
+		obj_parse("objs/tree/Tree.obj", &objs);
 		return objs;
 	}
 };

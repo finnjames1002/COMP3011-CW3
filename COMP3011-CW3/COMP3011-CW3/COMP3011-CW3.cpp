@@ -22,8 +22,8 @@ using namespace std;
 
 #define WIDTH 1200
 #define HEIGHT 800
-#define SH_MAP_WIDTH 4096
-#define SH_MAP_HEIGHT 4096
+#define SH_MAP_WIDTH 2048
+#define SH_MAP_HEIGHT 2048
 #define PI 3.14159265358979323846
 
 Camera camera = Camera();
@@ -34,21 +34,29 @@ float radius = 15.0f; // Camera's distance from the center of rotation
 int numLatitudeLines = 100;
 int numLongitudeLines = 100;
 
+double lastX = 0.f;
+double lastY = 0.f;
+
 // Define the position of the light source (the sun)
 //glm::vec3 lightPos = glm::vec3(0.f, 10.f, -80.f);
-glm::vec3 lightPos = glm::vec3(0.f, 10.f, -50.f);
+glm::vec3 lightPos = glm::vec3(0.f, 20.f, 60.f);
 
 void SizeCallback(GLFWwindow* window, int w, int h)
 {
 	glViewport(0, 0, w, h);
 }
 
-
-
 void processKeyboard(GLFWwindow* window)
 {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
+}
+
+void cursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
+
+    if (camera.cameraType == CAMERA_FREE) {
+        camera.processMouseMovement(window, xPos, yPos);
+    }
 }
 
 struct Vertex {
@@ -113,6 +121,7 @@ vector<Object> setupTree(vector<Object> objs) {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         objs[i].texture = CreateTexture(objs[i].mtl.fil_name);
+        objs[i].specularTexture = CreateTexture(objs[i].mtl.specular_fil_name); // Load spec map
 
         glGenVertexArrays(1, &objs[i].VAO);
         glGenBuffers(1, &objs[i].VBO);
@@ -157,7 +166,6 @@ void drawSphere(int sphereProgram, int sphereVAO, int numVertices, glm::mat4 vie
     // Use the same model matrix as the textured objects
     glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelSun));
     glBindVertexArray(sphereVAO);
-    glEnable(GL_DEPTH_TEST); // Enable depth testing
     glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
 }
 
@@ -167,8 +175,12 @@ void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int tex
 		glUseProgram(shaderProgram);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, objs[i].texture);
-        glUniform1i(glGetUniformLocation(shaderProgram, "textureSampler"), 0);
-
+        /*
+        if (objs[i].specularTexture != -1) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, objs[i].specularTexture);
+            glUniform1i(glGetUniformLocation(shaderProgram, "texture_specular"), 1);
+        }*/
         glBindVertexArray(objs[i].VAO);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
@@ -176,15 +188,28 @@ void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int tex
     }
 }
 
-void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm::mat4 projectedLightSpaceMatrix, vector<Object> objs, vector<Object> objs2)
+void drawFloor(vector<Object> objs, glm::mat4 model, int shaderProgram, int texScale) {
+    for (int i = 0; i < objs.size(); i++)
+    {
+        glUseProgram(shaderProgram);
+        //glActiveTexture(GL_TEXTURE0);
+        //glBindTexture(GL_TEXTURE_2D, objs[i].texture);
+        glBindVertexArray(objs[i].VAO);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
+        glDrawArrays(GL_TRIANGLES, 0, (objs[i].tris.size() * 3));
+    }
+}
+
+void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm::mat4 projectedLightSpaceMatrix, vector<Object> objs, vector<Object> objs2, glm::mat4 treeModel, glm::mat4 floorModel)
 {
     glViewport(0, 0, SH_MAP_WIDTH, SH_MAP_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadow.FBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
     glUseProgram(shadowShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
-    drawObject(objs2, glm::mat4(1.f), shadowShaderProgram, 50);
-	drawObject(objs, glm::mat4(1.f), shadowShaderProgram, 1);
+    drawFloor(objs2, floorModel, shadowShaderProgram, 10);
+	drawObject(objs, treeModel, shadowShaderProgram, 1);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -194,10 +219,11 @@ int main(int argc, char** argv)
     int numVertices = numLatitudeLines * numLongitudeLines * 6;
     glfwInit();
     glfwWindowHint(GLFW_SAMPLES, 8); // Enable 8x MSAA
-    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Assessment 2", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "COMP-3011 CW3", NULL, NULL);
     glfwMakeContextCurrent(window);
     glfwSetWindowSizeCallback(window, SizeCallback);
-
+    glfwSetCursorPosCallback(window, cursorPositionCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     gl3wInit();
     glEnable(GL_MULTISAMPLE);
 
@@ -246,18 +272,15 @@ int main(int argc, char** argv)
     while (!glfwWindowShouldClose(window))
     {
         camera.processKeyboard(window);
-		camera.setRotationSpeed((float)glfwGetTime() / 2);
 
-        
-
-        glm::mat4 model = glm::mat4(1.f);
-        tester->Model(&model);
+        glm::mat4 modelTree = glm::mat4(1.f);
+        tester->Model(&modelTree);
 
 		glm::mat4 modelFloor = glm::mat4(1.f);
 		tester->ModelFloor(&modelFloor);
 
         // Extract the translation part of the model matrix to get the position of the tree
-        glm::vec3 treePosition = glm::vec3(model[3]);
+        glm::vec3 treePosition = glm::vec3(modelTree[3]);
 
 		camera.updateCam(treePosition, glm::vec3(0.f, 1.f, 0.f));
 
@@ -278,12 +301,12 @@ int main(int argc, char** argv)
         glUniform3f(glGetUniformLocation(sphereProgram, "viewPos"), camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
         // Setup light space matrix
-        glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 1.0f, 100.0f);
-        glm::vec3 lightDir = glm::normalize(lightPos - glm::vec3(0.f, -1.8f, -3.f));
-        glm::mat4 lightView = glm::lookAt(lightPos, camera.getTarget(), camera.getUp());
+        glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.f, 100.0f);
+        glm::vec3 lightDir = glm::normalize(treePosition - lightPos);
+        glm::mat4 lightView = glm::lookAt(lightPos, lightDir - lightPos, glm::vec3(0.f,1.f,0.f));
 
         glm::mat4 projectedLightSpaceMatrix = lightProjection * lightView;
-        generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2);
+        generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2, modelTree, modelFloor);
 		//saveShadowMapToBitmap(shadow.Texture, SH_MAP_WIDTH, SH_MAP_HEIGHT);
 
         glViewport(0, 0, WIDTH, HEIGHT);
@@ -291,21 +314,20 @@ int main(int argc, char** argv)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		
-
 		// Draw the sphere
 		drawSphere(sphereProgram, sphereVAO, numVertices, view, projection, modelSun);
 
-        glBindVertexArray(0);
-
-		
         glUseProgram(shaderProgram); // Switch back to the original 
         glBindTexture(GL_TEXTURE_2D, shadow.Texture);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
+		glUniform3f(glGetUniformLocation(shaderProgram, "lightDir"), lightDir.x, lightDir.y, lightDir.z);
 
 		// Draw the objects
-        drawObject(objs2, modelFloor, shaderProgram, 50);
-		drawObject(objs, model, shaderProgram, 1);
+        drawFloor(objs2, modelFloor, shaderProgram, 10);
+		drawObject(objs, modelTree, shaderProgram, 1);
+        
 		        
+        glBindVertexArray(0);
         glfwSwapBuffers(window);
 
         glfwPollEvents();

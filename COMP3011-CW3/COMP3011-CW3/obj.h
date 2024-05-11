@@ -70,12 +70,14 @@ class Material
 public:
 	char mtl_name[256];
 	char fil_name[256];
+	char specular_fil_name[256];
 
 	Material() {}
-	Material(char* n, char* f) 
+	Material(char* n, char* f, char* sf)
 	{
-		strcpy(mtl_name, n); 
+		strcpy(mtl_name, n);
 		strcpy(fil_name, f);
+		strcpy(specular_fil_name, sf);
 	}
 	~Material() 
 	{
@@ -90,6 +92,7 @@ public:
 	vector<triangle> tris;
 	Material mtl;
 	GLuint texture;
+	GLuint specularTexture;
 
 
 	Object() {}
@@ -97,6 +100,7 @@ public:
 	{
 		strcpy(mtl.fil_name, m.fil_name);
 		strcpy(mtl.mtl_name, m.mtl_name);
+		strcpy(mtl.specular_fil_name, m.specular_fil_name);
 	}
 	~Object()
 	{
@@ -140,6 +144,16 @@ int mtl_parse(char* filename, vector<Material> *mtls)
 			strncpy(current_material.fil_name, fullTextureFilename.c_str(), sizeof(current_material.fil_name) - 1);
 			// Manually add null terminator. There is probably an easier way of doing this :o
 			current_material.fil_name[sizeof(current_material.fil_name) - 1] = '\0';
+		}
+		else if (strcmp(token, "map_Ks") == 0) {
+			char specular_texture_filename[256];
+			sscanf(line + 7, "%s", specular_texture_filename);
+			// Prepend the path
+			std::string fullTextureFilename = directoryPath + specular_texture_filename;
+			// Copy the name to specular texture file name
+			strncpy(current_material.specular_fil_name, fullTextureFilename.c_str(), sizeof(current_material.specular_fil_name) - 1);
+			// Manually add null terminator. There is probably an easier way of doing this :o
+			current_material.specular_fil_name[sizeof(current_material.specular_fil_name) - 1] = '\0';
 		}
 	}
 
