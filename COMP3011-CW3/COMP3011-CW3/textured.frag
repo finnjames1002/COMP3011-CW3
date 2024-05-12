@@ -11,6 +11,7 @@ uniform sampler2D texture_specular;
 uniform vec3 lightPos; // The position of the light source
 uniform vec3 viewPos; // The position of the camera
 uniform vec3 lightDir; // The direction of the light source
+uniform float lightIntensity; // Light intensity dependent on Y position
 
 out vec4 fragColour;
 
@@ -49,8 +50,9 @@ void main()
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 128);
     vec3 specular = specularStrength * spec * texture(texture_specular, TexCoord).rgb; // Use the specular map
 
-    vec4 texColor = texture(Texture, TexCoord);
+      vec4 texColor = texture(Texture, TexCoord);
     float shadow = shadowCalculation(FragPosProjectedLightSpace);
-    vec3 result = (ambient + ((1.f - shadow) * (diffuse + specular))) * texColor.rgb; // Apply the shadow
+    vec3 result = (ambient + ((1.f - shadow) * (diffuse + specular))) * texColor.rgb * lightIntensity; // Multiply by light intensity
     fragColour = vec4(result, texColor.a); // Use alpha value from texture
+
 }
