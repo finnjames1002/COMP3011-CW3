@@ -50,9 +50,20 @@ int mtl_parse(char* filename, vector<Material> *mtls)
 			std::string fullTextureFilename = directoryPath + specular_texture_filename;
 			// Copy the name to specular texture file name
 			strncpy(current_material.specular_fil_name, fullTextureFilename.c_str(), sizeof(current_material.specular_fil_name) - 1);
-			// Manually add null terminator. There is probably an easier way of doing this :o
+			// Manually add null terminator
 			current_material.specular_fil_name[sizeof(current_material.specular_fil_name) - 1] = '\0';
 		}
+		else if (strcmp(token, "map_Ke") == 0) {
+			char emit_texture_filename[256];
+			sscanf(line + 7, "%s", emit_texture_filename);
+			// Prepend the path
+			std::string fullTextureFilename = directoryPath + emit_texture_filename;
+			// Copy the name to emit texture file name
+			strncpy(current_material.emit_fil_name, fullTextureFilename.c_str(), sizeof(current_material.emit_fil_name) - 1);
+			// Manually add null terminator
+			current_material.emit_fil_name[sizeof(current_material.emit_fil_name) - 1] = '\0';
+		}
+
 	}
 
 	// Add the last material after the loop ends
@@ -125,14 +136,24 @@ int obj_parse(const char * filename, vector<Object> *objs)
 			obj = Object();
 		}
 		else if (strcmp(token, "f") == 0) {
-			int v1=0,v2=0,v3=0,t1=0,t2=0,t3=0,n1=0,n2=0,n3=0;
-			sscanf(line + 2, "%d/%d/%d %d/%d/%d %d/%d/%d", &v1, &t1, &n1, &v2, &t2, &n2, &v3, &t3, &n3);
-			// Make new vertices
-			vertex vert0(vecs[v1 - 1], vec3(uvs[t1 - 1].x, uvs[t1 - 1].y, 0));
-			vertex vert1(vecs[v2 - 1], vec3(uvs[t2 - 1].x, uvs[t2 - 1].y, 0));
-			vertex vert2(vecs[v3 - 1], vec3(uvs[t3 - 1].x, uvs[t3 - 1].y, 0));
-			// Store in the objs tris
-			objs->back().tris.push_back(triangle(vert0,vert1,vert2));
+			int v[4], t[4], n[4];
+			int count = sscanf(line + 2, "%d/%d/%d %d/%d/%d %d/%d/%d %d/%d/%d",
+				&v[0], &t[0], &n[0], &v[1], &t[1], &n[1],
+				&v[2], &t[2], &n[2], &v[3], &t[3], &n[3]);
+			if (count == 9) { // Triangle
+				vertex vert0(vecs[v[0] - 1], vec3(uvs[t[0] - 1].x, uvs[t[0] - 1].y, 0));
+				vertex vert1(vecs[v[1] - 1], vec3(uvs[t[1] - 1].x, uvs[t[1] - 1].y, 0));
+				vertex vert2(vecs[v[2] - 1], vec3(uvs[t[2] - 1].x, uvs[t[2] - 1].y, 0));
+				objs->back().tris.push_back(triangle(vert0, vert1, vert2));
+			}
+			else if (count == 12) { // Quadrilateral
+				vertex vert0(vecs[v[0] - 1], vec3(uvs[t[0] - 1].x, uvs[t[0] - 1].y, 0));
+				vertex vert1(vecs[v[1] - 1], vec3(uvs[t[1] - 1].x, uvs[t[1] - 1].y, 0));
+				vertex vert2(vecs[v[2] - 1], vec3(uvs[t[2] - 1].x, uvs[t[2] - 1].y, 0));
+				vertex vert3(vecs[v[3] - 1], vec3(uvs[t[3] - 1].x, uvs[t[3] - 1].y, 0));
+				objs->back().tris.push_back(triangle(vert0, vert1, vert2));
+				objs->back().tris.push_back(triangle(vert0, vert2, vert3));
+			}
 		}
 	}
 

@@ -26,8 +26,6 @@ using namespace std;
 #define SH_MAP_HEIGHT 2048
 #define PI 3.14159265358979323846
 
-
-
 Camera camera = Camera();
 
 float radius = 15.0f; // Camera's distance from the center of rotation
@@ -39,10 +37,18 @@ int numLongitudeLines = 100;
 double lastX = 0.f;
 double lastY = 0.f;
 
-// Define the position of the light source (the sun)
-glm::vec3 lightPos = glm::vec3(0.f, 20.f, 60.f);
+// Define control points for the Bezier curve
+glm::vec3 controlPoints[4] = {
+    glm::vec3(0.0f, 0.0f, 10.0f),
+    glm::vec3(-10.0f, 0.0f, -10.0f),
+    glm::vec3(10.0f, 0.0f, -10.0f),
+    glm::vec3(0.0f, 0.0f, 10.0f)
+};
 
-int durationOfSunset = 10; // Duration of the sunset in seconds
+// Define the position of the light source (the sun)
+glm::vec3 lightPos = glm::vec3(8.f, 20.f, 60.f);
+
+int durationOfSunset = 30; // Duration of the sunset in seconds
 
 void SizeCallback(GLFWwindow* window, int w, int h)
 {
@@ -61,8 +67,6 @@ void cursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
         camera.processMouseMovement(window, xPos, yPos);
     }
 }
-
-
 
 float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
     std::vector<Vertex> vertices;
@@ -126,8 +130,9 @@ vector<Object> setupTree(vector<Object> objs) {
         if (std::string(objs[i].mtl.specular_fil_name) != "none") {
             objs[i].specularTexture = CreateTexture(objs[i].mtl.specular_fil_name); // Load spec map
         }
-        
-
+        if (std::string(objs[i].mtl.emit_fil_name) != "none") {
+            objs[i].emitTexture = CreateTexture(objs[i].mtl.emit_fil_name); // Load emit map
+        }
         glGenVertexArrays(1, &objs[i].VAO);
         glGenBuffers(1, &objs[i].VBO);
 
@@ -182,12 +187,17 @@ void drawObject(vector<Object> objs, glm::mat4 model, int shaderProgram, int tex
 		glUseProgram(shaderProgram);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, objs[i].texture);
-        /*
+        
         if (objs[i].specularTexture != -1) {
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, objs[i].specularTexture);
             glUniform1i(glGetUniformLocation(shaderProgram, "texture_specular"), 1);
-        }*/
+        }
+        if (objs[i].emitTexture != -1) {
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, objs[i].emitTexture);
+            glUniform1i(glGetUniformLocation(shaderProgram, "texture_emit"), 2);
+        }
         glBindVertexArray(objs[i].VAO);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
@@ -199,8 +209,8 @@ void drawFloor(vector<Object> objs, glm::mat4 model, int shaderProgram, int texS
     for (int i = 0; i < objs.size(); i++)
     {
         glUseProgram(shaderProgram);
-        //glActiveTexture(GL_TEXTURE0);
-        //glBindTexture(GL_TEXTURE_2D, objs[i].texture);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, objs[i].texture);
         glBindVertexArray(objs[i].VAO);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniform1f(glGetUniformLocation(shaderProgram, "texScale"), texScale);
@@ -208,7 +218,8 @@ void drawFloor(vector<Object> objs, glm::mat4 model, int shaderProgram, int texS
     }
 }
 
-void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm::mat4 projectedLightSpaceMatrix, vector<Object> objs, vector<Object> objs2, glm::mat4 treeModel, glm::mat4 floorModel)
+void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm::mat4 projectedLightSpaceMatrix, vector<Object> objs, vector<Object> objs2, vector<Object> objs3, vector<Object> objs4,
+    glm::mat4 sheepModel,glm::mat4 treeModel, glm::mat4 floorModel, glm::mat4 lampModel)
 {
     glViewport(0, 0, SH_MAP_WIDTH, SH_MAP_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadow.FBO);
@@ -217,6 +228,8 @@ void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm
 	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
     drawFloor(objs2, floorModel, shadowShaderProgram, 10);
 	drawObject(objs, treeModel, shadowShaderProgram, 1);
+	drawObject(objs3, sheepModel, shadowShaderProgram, 1);
+	drawObject(objs4, lampModel, shadowShaderProgram, 1);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -282,6 +295,49 @@ glm::mat4 calculateSunPos(glm::mat4 modelSun) {
 	return modelSun;
 }
 
+void updateSheepPosition(glm::mat4& modelSheep) {
+    // Calculate the current time t
+    float currentTime = glfwGetTime();
+    float animationDuration = 20.0f; // Change this value to adjust the speed of the sheep
+    float t = fmod(currentTime, animationDuration) / animationDuration;
+
+    glm::vec3 sheepPosition = static_cast<float>(pow((1 - t), 3)) * controlPoints[0]
+        + 3.f * static_cast<float>(pow((1 - t), 2)) * t * controlPoints[1]
+        + 3.f * (1 - t) * static_cast<float>(pow(t, 2)) * controlPoints[2]
+        + static_cast<float>(pow(t, 3)) * controlPoints[3];
+
+    // Store the current position
+    glm::vec3 currentPosition = sheepPosition;
+
+    // Calculate the next position
+    float delta = 0.01f; // Change this value to adjust the precision of the direction
+    float tNext = fmod(currentTime + delta, animationDuration) / animationDuration;
+    glm::vec3 nextPosition = static_cast<float>(pow((1 - tNext), 3)) * controlPoints[0]
+        + 3.f * static_cast<float>(pow((1 - tNext), 2)) * tNext * controlPoints[1]
+        + 3.f * (1 - tNext) * static_cast<float>(pow(tNext, 2)) * controlPoints[2]
+        + static_cast<float>(pow(tNext, 3)) * controlPoints[3];
+
+    // Calculate the direction and rotation
+    glm::vec3 direction = glm::normalize(nextPosition - currentPosition);
+    glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);
+    glm::vec3 right = glm::normalize(glm::cross(up, direction));
+    up = glm::cross(direction, right);
+
+    glm::mat4 rotation = glm::mat4(1.f);
+    rotation[0] = glm::vec4(right, 0.f);
+    rotation[1] = glm::vec4(up, 0.f);
+    rotation[2] = glm::vec4(direction, 0.f);
+
+    // Update the model matrix of the sheep
+    modelSheep = glm::mat4(1.f);
+    modelSheep = glm::translate(modelSheep, currentPosition); // Use the current position here
+    modelSheep *= rotation; // Apply the rotation
+    modelSheep = glm::scale(modelSheep, glm::vec3(.02f, .02f, .02f));
+
+    // Update the position
+    sheepPosition = nextPosition;
+}
+
 void updateShaders(unsigned int shaderProgram, unsigned int sphereProgram, glm::mat4 view, glm::mat4 projection, glm::mat4 projectedLightSpaceMatrix, glm::vec3 lightDir) {
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -327,11 +383,14 @@ int main(int argc, char** argv)
 	objs = setupTree(objs);
 	vector<Object> objs2 = objp->ParseFloor();
 	objs2 = setupFloor(objs2);
+	vector<Object> objs3 = objp->ParseSheep();
+	objs3 = setupTree(objs3);
+	vector<Object> objs4 = objp->ParseLamp();
+	objs4 = setupTree(objs4);
     
     // Define the VAO and VBO for the sphere
     unsigned int sphereVAO, sphereVBO;
 	setupSphere(&sphereVAO, &sphereVBO, numVertices, vert);
-    
     // Unbind the VAO
     glBindVertexArray(0);
 
@@ -349,10 +408,18 @@ int main(int argc, char** argv)
         camera.processKeyboard(window);
 
         glm::mat4 modelTree = glm::mat4(1.f);
-        objp->Model(&modelTree);
+        objp->ModelTree(&modelTree);
 
 		glm::mat4 modelFloor = glm::mat4(1.f);
 		objp->ModelFloor(&modelFloor);
+
+		glm::mat4 modelSheep = glm::mat4(1.f);
+		objp->ModelSheep(&modelSheep);
+
+		glm::mat4 modelLamp = glm::mat4(1.f);
+		objp->ModelLamp(&modelLamp);
+
+        updateSheepPosition(modelSheep);
 
         // Extract the translation part of the model matrix to get the position of the tree
         glm::vec3 treePosition = glm::vec3(modelTree[3]);
@@ -379,7 +446,7 @@ int main(int argc, char** argv)
         updateShaders(shaderProgram, sphereProgram, view, projection, projectedLightSpaceMatrix, lightDir);
 
 		// Shadow map
-        generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2, modelTree, modelFloor);
+        generateDepthMap(shadowProgram, shadow, projectedLightSpaceMatrix, objs, objs2, objs3, objs4, modelSheep, modelTree, modelFloor, modelLamp);
 		//saveShadowMapToBitmap(shadow.Texture, SH_MAP_WIDTH, SH_MAP_HEIGHT);
 
 		// Reset the viewport and clear the screen
@@ -392,11 +459,16 @@ int main(int argc, char** argv)
 		drawSphere(sphereProgram, sphereVAO, numVertices, view, projection, modelSun);
 
         glUseProgram(shaderProgram); // Switch back to original shader
+        glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, shadow.Texture);
-        
+        glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 3);
+
 		// Draw the objects
         drawFloor(objs2, modelFloor, shaderProgram, 10);
-		drawObject(objs, modelTree, shaderProgram, 1);
+		drawObject(objs3, modelSheep, shaderProgram, 1);
+		drawObject(objs4, modelLamp, shaderProgram, 1);
+        drawObject(objs, modelTree, shaderProgram, 1);
+		
         
         glBindVertexArray(0);
         glfwSwapBuffers(window);
