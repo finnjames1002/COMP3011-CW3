@@ -17,11 +17,8 @@ GLuint CreateTexture(const char* filename)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
-
-
 	int width, height, channels;
 	unsigned char* pxls = stbi_load(filename, &width, &height, &channels, 0);
-
 
 	if (pxls != NULL)
 	{

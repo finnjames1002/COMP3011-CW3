@@ -36,6 +36,9 @@ int numLongitudeLines = 100;
 double lastX = 0.f;
 double lastY = 0.f;
 
+// Define the texture for the sphere
+unsigned int sphereTex;
+
 // Define light intensity, used often
 float lightIntensity;
 
@@ -50,7 +53,8 @@ glm::vec3 controlPoints[4] = {
 // Define the position of the light source (the sun)
 glm::vec3 lightPos = glm::vec3(8.f, 20.f, 60.f);
 
-int durationOfSunset = 30; // Duration of the sunset in seconds
+float sunsetProgress = 0.0;
+float sunsetSpeed = 0.01;  // Increase this to make the sunset faster
 
 // Resizing the window
 void SizeCallback(GLFWwindow* window, int w, int h)
@@ -63,6 +67,14 @@ void processKeyboard(GLFWwindow* window)
 {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+		if (sunsetSpeed < 1.5) // ensure we dont have a stroke
+            sunsetSpeed += 0.001;
+    }
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+		if (sunsetSpeed > -1.5)
+        sunsetSpeed -= 0.001;
+	}
 }
 
 // Deal with mouse movement (just call camera function)
@@ -73,7 +85,7 @@ void cursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
 // Generate vertices for the sphere then flatten them into a float array
 float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
     std::vector<Vertex> vertices;
-
+    sphereTex = CreateTexture("objs/sun/sun.jpg");
     for (int i = 0; i < numLatitudeLines; ++i) {
         for (int j = 0; j <= numLongitudeLines; ++j) {
             for (int k = 0; k <= 1; ++k) {
@@ -84,25 +96,30 @@ float* generateSphereVert(int numLatitudeLines, int numLongitudeLines) {
                 vertex.x = std::sin(theta) * std::cos(phi);
                 vertex.y = std::sin(theta) * std::sin(phi);
                 vertex.z = std::cos(theta);
+                vertex.u = (float)j / numLongitudeLines; // Texture coordinate u
+                vertex.v = (float)(i + k) / numLatitudeLines; // Texture coordinate v
 
                 vertices.push_back(vertex);
             }
         }
     }
 
-    float* flattenedVertices = new float[vertices.size() * 6]; // 6 because we now have 3 coordinates and 3 color values
+    float* flattenedVertices = new float[vertices.size() * 8]; // 8 because we now have 3 coordinates, 3 color values, and 2 texture coordinates
 
     for (int i = 0; i < vertices.size(); ++i) {
-        flattenedVertices[i * 6] = vertices[i].x;
-        flattenedVertices[i * 6 + 1] = vertices[i].y;
-        flattenedVertices[i * 6 + 2] = vertices[i].z;
-        flattenedVertices[i * 6 + 3] = 1.0f; // Red
-        flattenedVertices[i * 6 + 4] = 0.87f; // Green
-        flattenedVertices[i * 6 + 5] = 0.13f; // Blue
+        flattenedVertices[i * 8] = vertices[i].x;
+        flattenedVertices[i * 8 + 1] = vertices[i].y;
+        flattenedVertices[i * 8 + 2] = vertices[i].z;
+        flattenedVertices[i * 8 + 3] = 1.0f; // Red
+        flattenedVertices[i * 8 + 4] = 0.87f; // Green
+        flattenedVertices[i * 8 + 5] = 0.13f; // Blue
+        flattenedVertices[i * 8 + 6] = vertices[i].u; // Texture coordinate u
+        flattenedVertices[i * 8 + 7] = vertices[i].v; // Texture coordinate v
     }
 
     return flattenedVertices;
 }
+
 
 // Setup the VAO and VBO for the sphere
 void setupSphere(unsigned int* sphereVAO, unsigned int* sphereVBO, int numVertices, float* vert) {
@@ -110,26 +127,25 @@ void setupSphere(unsigned int* sphereVAO, unsigned int* sphereVBO, int numVertic
 
     glGenVertexArrays(1, sphereVAO);
     glGenBuffers(1, sphereVBO);
-
+    
     // Bind and set vertex buffer(s) and attribute pointer(s) for the sphere
     glBindVertexArray(*sphereVAO);
     glBindBuffer(GL_ARRAY_BUFFER, *sphereVBO);
     glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(float), vert, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
 }
 
 // Generic function to setup objects
 vector<Object> setupObject(vector<Object> objs) {
-    //Setup for objecs 
+    //Setup for objects 
     for (int i = 0; i < objs.size(); i++)
     {
-        // Enable alpha blending
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
         objs[i].texture = CreateTexture(objs[i].mtl.fil_name);
         
         if (std::string(objs[i].mtl.specular_fil_name) != "none") {
@@ -153,7 +169,6 @@ vector<Object> setupObject(vector<Object> objs) {
     }
 	return objs;
 }
-
 
 // Setup for the floor
 vector<Object> setupFloor(vector<Object> objs2) {
@@ -179,12 +194,16 @@ vector<Object> setupFloor(vector<Object> objs2) {
 void drawSphere(int sphereProgram, int sphereVAO, int numVertices, glm::mat4 view, glm::mat4 projection, glm::mat4 modelSun) {
     // Draw the sphere first
     glUseProgram(sphereProgram); // Use the sphere shader program
-    
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sphereTex);
+    glUniform1i(glGetUniformLocation(sphereProgram, "texture_diffuse"), 0);
+
     glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
     // Use the same model matrix as the textured objects
     glUniformMatrix4fv(glGetUniformLocation(sphereProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelSun));
-    
+
     glBindVertexArray(sphereVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
 }
@@ -230,7 +249,7 @@ void generateDepthMap(unsigned int shadowShaderProgram, ShadowStruct shadow, glm
 	glClear(GL_DEPTH_BUFFER_BIT);
     glUseProgram(shadowShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "projectedLightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(projectedLightSpaceMatrix));
-    drawObject(objs2, floorModel, shadowShaderProgram, 10);
+    drawObject(objs2, floorModel, shadowShaderProgram, 50);
 	drawObject(objs, treeModel, shadowShaderProgram, 1);
 	drawObject(objs3, sheepModel, shadowShaderProgram, 1);
 	drawObject(objs4, lampModel, shadowShaderProgram, 1);
@@ -294,16 +313,16 @@ glm::vec3 calculateSkyColour(unsigned int shaderProgram) {
 
 // Calculate the position of the sun
 glm::mat4 calculateSunPos(glm::mat4 modelSun) {
-	// Calculate the current time for moving the sun
-    float t = fmod(glfwGetTime(), durationOfSunset) / durationOfSunset;
+	// Calculate the progress of the sunset
+    sunsetProgress += (sunsetSpeed / 100);
 
     // Calculate the new position of the sun
     float radiusY = 30.0f; // Radius of the ellipse in the y-axis
     float radiusZ = 120.0f; // Radius of the ellipse in the z-axis
     float h = 0.0f; // y-coordinate of the center
     float k = 0.0f; // z-coordinate of the center
-	float y = h + radiusY * cos(2 * PI * t); // Calculate the y-coordinate of the sun
-	float z = k + radiusZ * sin(2 * PI * t); // Calculate the z-coordinate of the sun
+	float y = h + radiusY * cos(2 * PI * sunsetProgress); // Calculate the y-coordinate of the sun
+	float z = k + radiusZ * sin(2 * PI * sunsetProgress); // Calculate the z-coordinate of the sun
 	lightPos = glm::vec3(lightPos.x, y, z); // Update the position of the light source (x remains the same)
 
     modelSun = glm::mat4(1.f); // Reset the model
@@ -374,10 +393,6 @@ void updateShaders(unsigned int shaderProgram, unsigned int sphereProgram, glm::
 
 int main(int argc, char** argv)
 {
-	// Pre-setup for the sphere
-    float* vert = generateSphereVert(numLatitudeLines, numLongitudeLines);
-    int numVertices = numLatitudeLines * numLongitudeLines * 6;
-
 	// Setup the GL window
     glfwInit();
     glfwWindowHint(GLFW_SAMPLES, 8); // Enable 8x MSAA
@@ -398,6 +413,10 @@ int main(int argc, char** argv)
     unsigned int shaderProgram = CompileShader("textured.vert", "textured.frag");
 	unsigned int sphereProgram = CompileShader("triangle.vert", "triangle.frag");
 	unsigned int shadowProgram = CompileShader("shadow.vert", "shadow.frag");
+
+    // Pre-setup for the sphere
+    float* vert = generateSphereVert(numLatitudeLines, numLongitudeLines);
+    int numVertices = numLatitudeLines * numLongitudeLines * 8;
 
 	// Setup the objects
     Obj1 obj;
@@ -487,7 +506,7 @@ int main(int argc, char** argv)
         glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 3);
 
 		// Draw the objects
-        drawObject(floorObjs, modelFloor, shaderProgram, 20);
+        drawObject(floorObjs, modelFloor, shaderProgram, 50);
 		drawObject(sheepObjs, modelSheep, shaderProgram, 1);
 		drawObject(lampObjs, modelLamp, shaderProgram, 1);
         drawObject(treeObjs, modelTree, shaderProgram, 1);

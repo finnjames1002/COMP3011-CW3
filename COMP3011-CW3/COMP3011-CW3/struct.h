@@ -48,6 +48,7 @@ public:
 
 struct Vertex { // Lord forgive me for making two vertex structs
 	float x, y, z;
+	float u, v;
 };
 
 struct triangle

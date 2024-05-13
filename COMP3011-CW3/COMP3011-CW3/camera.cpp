@@ -4,8 +4,6 @@ Camera::Camera() : yaw(0.0f), pitch(0.0f), direction(0.0f, 0.0f, -1.0f), radius(
     cameraType = CAMERA_ROTATE;
 }
 
-
-
 void Camera::processKeyboard(GLFWwindow* window) {
 	
     float zoomSpeed = 0.05f; // The speed of zooming

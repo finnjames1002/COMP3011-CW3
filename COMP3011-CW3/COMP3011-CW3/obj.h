@@ -27,7 +27,6 @@ public:
 	}
 	void ModelFloor(glm::mat4* model)
 	{
-		(*model) = glm::translate((*model), glm::vec3(0.f, 0.0f, 0.f));
 		(*model) = glm::rotate((*model), glm::radians(90.0f), glm::vec3(1.f, 0.f, 0.f)); // Rotate 90 degrees around X-axis
 		(*model) = glm::scale((*model), glm::vec3(200.f, 200.f, 200.f)); // big
 	}
@@ -39,7 +38,6 @@ public:
 	void ModelLamp(glm::mat4* model)
 	{
 		(*model) = glm::translate((*model), glm::vec3(-3.f, 0.f, 1.f));
-
 	}
 	virtual vector<Object> ParseTree()
 	{
