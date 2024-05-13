@@ -5,6 +5,7 @@
 
 using namespace std;
 
+// MTL parser, improved by adding specular and emit textures
 int mtl_parse(char* filename, vector<Material> *mtls)
 {
 	FILE* file = fopen(filename, "r");
@@ -28,7 +29,6 @@ int mtl_parse(char* filename, vector<Material> *mtls)
 		if (strcmp(token, "newmtl") == 0) {
 			// If current_material is not empty, add it to mtls
 			mtls->push_back(current_material);
-			
 			// Create a new Material object
 			current_material = Material();
 			sscanf(line + 7, "%s", current_material.mtl_name);
@@ -75,6 +75,7 @@ int mtl_parse(char* filename, vector<Material> *mtls)
 	return 1;
 }
 
+// OBJ parser, improved by adding quad loading
 int obj_parse(const char * filename, vector<Object> *objs)
 {
 	std::vector<Material> materials;
@@ -146,7 +147,7 @@ int obj_parse(const char * filename, vector<Object> *objs)
 				vertex vert2(vecs[v[2] - 1], vec3(uvs[t[2] - 1].x, uvs[t[2] - 1].y, 0));
 				objs->back().tris.push_back(triangle(vert0, vert1, vert2));
 			}
-			else if (count == 12) { // Quadrilateral
+			else if (count == 12) { // Quad
 				vertex vert0(vecs[v[0] - 1], vec3(uvs[t[0] - 1].x, uvs[t[0] - 1].y, 0));
 				vertex vert1(vecs[v[1] - 1], vec3(uvs[t[1] - 1].x, uvs[t[1] - 1].y, 0));
 				vertex vert2(vecs[v[2] - 1], vec3(uvs[t[2] - 1].x, uvs[t[2] - 1].y, 0));

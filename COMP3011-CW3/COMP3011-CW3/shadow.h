@@ -2,6 +2,8 @@
 
 #include "bitmap.h"
 
+// From the lab
+
 struct ShadowStruct
 {
 	unsigned int FBO;
@@ -31,6 +33,7 @@ ShadowStruct setup_shadowmap(int w, int h)
 
 	return shadow;
 }
+
 
 void saveShadowMapToBitmap(unsigned int Texture, int w, int h)
 {

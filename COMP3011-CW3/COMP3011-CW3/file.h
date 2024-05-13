@@ -1,7 +1,8 @@
-
 #pragma once
 #include <iostream>
 #include <stdio.h>
+
+// From the cw2
 
 char* read_file(const char* filename)
 {

@@ -7,8 +7,8 @@ layout(location = 2) in vec3 aNormal;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-uniform float texScale; // New uniform for texture scaling
-uniform mat4 projectedLightSpaceMatrix; // New uniform for shadow mapping
+uniform float texScale; // For repeating scaled textures
+uniform mat4 projectedLightSpaceMatrix; 
 
 out vec2 TexCoord;
 out vec3 Normal; // Output the normal to the fragment shader

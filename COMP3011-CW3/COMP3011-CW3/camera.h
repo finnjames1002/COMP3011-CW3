@@ -1,5 +1,4 @@
 #pragma once
-#ifndef CAMERA_H
 #define CAMERA_H
 
 #include <GLFW/glfw3.h>
@@ -17,7 +16,6 @@ public:
     Camera();
     void processKeyboard(GLFWwindow* window);
     void processMouseMovement(GLFWwindow* window, float xOffset, float yOffset);
-    glm::mat4 getViewMatrix() const;
     glm::vec3 getPosition() const;
     glm::vec3 getTarget() const;
 	glm::vec3 getUp() const;
@@ -26,7 +24,8 @@ public:
 private:
     float radius;
 	float yOffset;
-    float rotateSpeed;
+    float rotatePos;
+	float rotateSpeed = 0.002;
     float yaw, pitch;
     glm::vec3 direction;
     glm::vec3 position;
@@ -35,5 +34,3 @@ private:
 	double lastX, lastY = 0.f;
 	double initialYaw, initialPitch = 0.f;
 };
-
-#endif

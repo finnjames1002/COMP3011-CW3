@@ -6,7 +6,7 @@
 #include <windows.h>
 #include <wingdi.h>
 
-
+// From the lab
 GLuint savebitmap(const char* filename,
 	unsigned char* pixelBuffer,
 	BITMAPINFOHEADER* infoHeader, BITMAPFILEHEADER* fileHeader)

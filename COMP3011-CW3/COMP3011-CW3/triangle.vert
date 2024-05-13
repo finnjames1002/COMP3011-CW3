@@ -7,7 +7,7 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-out vec3 ourColor; // Output a color to the fragment shader
+out vec3 ourColor;
 
 void main()
 {

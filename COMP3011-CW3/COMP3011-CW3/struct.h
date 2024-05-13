@@ -46,7 +46,7 @@ public:
 	~vertex() {}
 };
 
-struct Vertex {
+struct Vertex { // Lord forgive me for making two vertex structs
 	float x, y, z;
 };
 
@@ -101,7 +101,7 @@ public:
 	GLuint texture;
 	GLuint specularTexture;
 	GLuint emitTexture;
-
+	float emitIntensity;
 
 	Object() {}
 	Object(Material m)

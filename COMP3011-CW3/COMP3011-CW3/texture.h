@@ -3,6 +3,7 @@
 
 #include "stb_image.h"
 
+// CW2 texture loading function
 GLuint CreateTexture(const char* filename)
 {
 	glEnable(GL_BLEND);

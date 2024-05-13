@@ -39,19 +39,25 @@ void Camera::processKeyboard(GLFWwindow* window) {
             position -= cameraSpeed * forward;
         }
     }
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) // Move left
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) // Move left / rotate left faster
     {
         if (cameraType == CAMERA_FREE) {
             glm::vec3 right = glm::normalize(glm::cross(up, target - position));
             position += cameraSpeed * right;
         }
+        else {
+			rotateSpeed += 0.00003;
+        }
 		
 	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) // Move right
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) // Move right / rotate right faster
 	{
         if (cameraType == CAMERA_FREE) {
             glm::vec3 right = glm::normalize(glm::cross(up, target - position));
             position -= cameraSpeed * right;
+        }
+        else {
+            rotateSpeed -= 0.00003;
         }
 	}
     
@@ -67,10 +73,12 @@ void Camera::processKeyboard(GLFWwindow* window) {
 	{
 		cameraType = CAMERA_FREE;
         direction = glm::normalize(target - position);
+
         // Calculate yaw and pitch based on the current direction vector
         yaw = glm::degrees(atan2(direction.z, direction.x));
         pitch = glm::degrees(asin(direction.y));
 
+		// Had to do this weird setup i'm not sure why
         double mouseX, mouseY;
         glfwGetCursorPos(window, &mouseX, &mouseY);
         lastX = static_cast<float>(mouseX);
@@ -84,7 +92,7 @@ void Camera::processMouseMovement(GLFWwindow* window, float xPos, float yPos) {
         return;
     }
 
-    float sensitivity = 0.1f; // Adjust to your liking
+	float sensitivity = 0.1f; // Sensitivity of camera movement responding to mouse input
 
     float xOffset = xPos - lastX;
     float yOffset = yPos - lastY;
@@ -101,7 +109,7 @@ void Camera::processMouseMovement(GLFWwindow* window, float xPos, float yPos) {
     if (pitch < -89.0f)
         pitch = -89.0f;
 
-    // Update direction, right and up Vectors using the updated Euler angles
+    // Update direction, right and up vectors
     direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
     direction.y = sin(glm::radians(pitch));
     direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
@@ -113,25 +121,22 @@ void Camera::processMouseMovement(GLFWwindow* window, float xPos, float yPos) {
 }
 
 void Camera::updateCam(glm::vec3 t, glm::vec3 up) {
-    if (cameraType == CAMERA_ROTATE || cameraType == CAMERA_STATIC) {
-        if (cameraType == CAMERA_ROTATE) {
-            rotateSpeed += 0.005;
-        }
-        target = t;
-        this->up = up;
-        position = glm::vec3(
-            t.x + radius * cos(rotateSpeed),
-            t.y + yOffset,
-            t.z + radius * sin(rotateSpeed)
-        );
-	}
     if (cameraType == CAMERA_FREE) {
         target = position + direction;
     }
-}
-
-glm::mat4 Camera::getViewMatrix() const {
-    return glm::lookAt(position, target, up);
+    else {
+		if (cameraType == CAMERA_ROTATE) { // Rotate the camera around the target
+            rotatePos += rotateSpeed;
+        }
+		// If not, the camera is static
+        target = t;
+        this->up = up;
+        position = glm::vec3(
+            t.x + radius * cos(rotatePos), 
+            t.y + yOffset,
+            t.z + radius * sin(rotatePos)
+        );
+    }
 }
 
 glm::vec3 Camera::getPosition() const {

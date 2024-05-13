@@ -2,6 +2,8 @@
 
 #include "file.h"
 
+// From the cw2
+
 GLuint CompileShader(const char* vsFilename, const char* fsFilename)
 {
 	int success;
